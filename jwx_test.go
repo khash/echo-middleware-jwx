@@ -1,4 +1,4 @@
-package jwx_test
+package jwx
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	jwx "github.com/lestrrat-go/echo-middleware-jwx"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -32,14 +31,14 @@ func TestJWXRace(t *testing.T) {
 		return
 	}
 
-	h := jwx.WithConfig(&jwx.Config{
+	h := WithConfig(&Config{
 		Key: key,
 	})(handler)
 
 	makeReq := func(token string) echo.Context {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		res := httptest.NewRecorder()
-		req.Header.Set(echo.HeaderAuthorization, jwx.DefaultConfig.AuthScheme+" "+token)
+		req.Header.Set(echo.HeaderAuthorization, DefaultConfig.AuthScheme+" "+token)
 		c := e.NewContext(req, res)
 		if !assert.NoError(t, h(c)) {
 			panic("error")
@@ -100,12 +99,12 @@ func TestJWX(t *testing.T) {
 	if !assert.NoError(t, err, `jwk.FromRaw should succeed`) {
 		return
 	}
-	validAuth := jwx.DefaultConfig.AuthScheme + " " + token
+	validAuth := DefaultConfig.AuthScheme + " " + token
 
 	for _, tc := range []struct {
 		expPanic   bool
 		expErrCode int // 0 for Success
-		config     jwx.Config
+		config     Config
 		reqURL     string // "/" if empty
 		hdrAuth    string
 		hdrCookie  string // test.Request doesn't provide SetCookie(); use name=val
@@ -114,7 +113,7 @@ func TestJWX(t *testing.T) {
 	}{
 		{
 			expErrCode: http.StatusBadRequest,
-			config: jwx.Config{
+			config: Config{
 				Key:                validKey,
 				SignatureAlgorithm: "RS256",
 			},
@@ -123,22 +122,22 @@ func TestJWX(t *testing.T) {
 		{
 			expErrCode: http.StatusUnauthorized,
 			hdrAuth:    validAuth,
-			config:     jwx.Config{Key: invalidKey},
+			config:     Config{Key: invalidKey},
 			info:       "Invalid key",
 		},
 		{
 			hdrAuth: validAuth,
-			config:  jwx.Config{Key: validKey},
+			config:  Config{Key: validKey},
 			info:    "Valid JWT",
 		},
 		{
 			hdrAuth: "Token" + " " + token,
-			config:  jwx.Config{AuthScheme: "Token", Key: validKey},
+			config:  Config{AuthScheme: "Token", Key: validKey},
 			info:    "Valid JWT with custom AuthScheme",
 		},
 		{
 			hdrAuth: validAuth,
-			config: jwx.Config{
+			config: Config{
 				Key: validKey,
 			},
 			info: "Valid JWT with custom claims",
@@ -146,16 +145,16 @@ func TestJWX(t *testing.T) {
 		{
 			hdrAuth:    "invalid-auth",
 			expErrCode: http.StatusBadRequest,
-			config:     jwx.Config{Key: validKey},
+			config:     Config{Key: validKey},
 			info:       "Invalid Authorization header",
 		},
 		{
-			config:     jwx.Config{Key: validKey},
+			config:     Config{Key: validKey},
 			expErrCode: http.StatusBadRequest,
 			info:       "Empty header auth field",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "query:jwt",
 			},
@@ -163,7 +162,7 @@ func TestJWX(t *testing.T) {
 			info:   "Valid query method",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "query:jwt",
 			},
@@ -172,7 +171,7 @@ func TestJWX(t *testing.T) {
 			info:       "Invalid query param name",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "query:jwt",
 			},
@@ -181,7 +180,7 @@ func TestJWX(t *testing.T) {
 			info:       "Invalid query param value",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "query:jwt",
 			},
@@ -190,7 +189,7 @@ func TestJWX(t *testing.T) {
 			info:       "Empty query",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "param:jwt",
 			},
@@ -198,7 +197,7 @@ func TestJWX(t *testing.T) {
 			info:   "Valid param method",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "cookie:jwt",
 			},
@@ -206,7 +205,7 @@ func TestJWX(t *testing.T) {
 			info:      "Valid cookie method",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "query:jwt,cookie:jwt",
 			},
@@ -214,7 +213,7 @@ func TestJWX(t *testing.T) {
 			info:      "Multiple jwt lookuop",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "cookie:jwt",
 			},
@@ -223,7 +222,7 @@ func TestJWX(t *testing.T) {
 			info:       "Invalid token with cookie method",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "cookie:jwt",
 			},
@@ -231,7 +230,7 @@ func TestJWX(t *testing.T) {
 			info:       "Empty cookie",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "form:jwt",
 			},
@@ -239,7 +238,7 @@ func TestJWX(t *testing.T) {
 			info:       "Valid form method",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "form:jwt",
 			},
@@ -248,7 +247,7 @@ func TestJWX(t *testing.T) {
 			info:       "Invalid token with form method",
 		},
 		{
-			config: jwx.Config{
+			config: Config{
 				Key:         validKey,
 				TokenLookup: "form:jwt",
 			},
@@ -257,7 +256,7 @@ func TestJWX(t *testing.T) {
 		},
 		{
 			hdrAuth: validAuth,
-			config: jwx.Config{
+			config: Config{
 				KeyFunc: func(echo.Context) (interface{}, error) {
 					return validKey, nil
 				},
@@ -266,7 +265,7 @@ func TestJWX(t *testing.T) {
 		},
 		{
 			hdrAuth: validAuth,
-			config: jwx.Config{
+			config: Config{
 				KeyFunc: func(echo.Context) (interface{}, error) {
 					return invalidKey, nil
 				},
@@ -276,7 +275,7 @@ func TestJWX(t *testing.T) {
 		},
 		{
 			hdrAuth: validAuth,
-			config: jwx.Config{
+			config: Config{
 				KeyFunc: func(echo.Context) (interface{}, error) {
 					return nil, errors.New("faulty KeyFunc")
 				},
@@ -313,19 +312,19 @@ func TestJWX(t *testing.T) {
 
 		if tc.expPanic {
 			assert.Panics(t, func() {
-				jwx.WithConfig(&tc.config)
+				WithConfig(&tc.config)
 			}, tc.info)
 			continue
 		}
 
 		if tc.expErrCode != 0 {
-			h := jwx.WithConfig(&tc.config)(handler)
+			h := WithConfig(&tc.config)(handler)
 			he := h(c).(*echo.HTTPError)
 			assert.Equal(t, tc.expErrCode, he.Code, tc.info)
 			continue
 		}
 
-		h := jwx.WithConfig(&tc.config)(handler)
+		h := WithConfig(&tc.config)(handler)
 		if assert.NoError(t, h(c), tc.info) {
 			user := c.Get("user").(jwt.Token)
 			{
@@ -386,47 +385,47 @@ func TestJWXwithKID(t *testing.T) {
 
 	for _, tc := range []struct {
 		expErrCode int // 0 for Success
-		config     jwx.Config
+		config     Config
 		hdrAuth    string
 		info       string
 	}{
 		{
-			hdrAuth: jwx.DefaultConfig.AuthScheme + " " + firstToken,
-			config:  jwx.Config{KeySet: validKeys},
+			hdrAuth: DefaultConfig.AuthScheme + " " + firstToken,
+			config:  Config{KeySet: validKeys},
 			info:    "First token valid",
 		},
 		{
-			hdrAuth: jwx.DefaultConfig.AuthScheme + " " + secondToken,
-			config:  jwx.Config{KeySet: validKeys},
+			hdrAuth: DefaultConfig.AuthScheme + " " + secondToken,
+			config:  Config{KeySet: validKeys},
 			info:    "Second token valid",
 		},
 		{
 			expErrCode: http.StatusUnauthorized,
-			hdrAuth:    jwx.DefaultConfig.AuthScheme + " " + wrongToken,
-			config:     jwx.Config{KeySet: validKeys},
+			hdrAuth:    DefaultConfig.AuthScheme + " " + wrongToken,
+			config:     Config{KeySet: validKeys},
 			info:       "Wrong key id token",
 		},
 		{
-			hdrAuth: jwx.DefaultConfig.AuthScheme + " " + staticToken,
-			config:  jwx.Config{Key: staticSecret},
+			hdrAuth: DefaultConfig.AuthScheme + " " + staticToken,
+			config:  Config{Key: staticSecret},
 			info:    "Valid static secret token",
 		},
 		{
 			expErrCode: http.StatusUnauthorized,
-			hdrAuth:    jwx.DefaultConfig.AuthScheme + " " + staticToken,
-			config:     jwx.Config{Key: invalidStaticSecret},
+			hdrAuth:    DefaultConfig.AuthScheme + " " + staticToken,
+			config:     Config{Key: invalidStaticSecret},
 			info:       "Invalid static secret",
 		},
 		{
 			expErrCode: http.StatusUnauthorized,
-			hdrAuth:    jwx.DefaultConfig.AuthScheme + " " + firstToken,
-			config:     jwx.Config{KeySet: invalidKeys},
+			hdrAuth:    DefaultConfig.AuthScheme + " " + firstToken,
+			config:     Config{KeySet: invalidKeys},
 			info:       "Invalid keys first token",
 		},
 		{
 			expErrCode: http.StatusUnauthorized,
-			hdrAuth:    jwx.DefaultConfig.AuthScheme + " " + secondToken,
-			config:     jwx.Config{KeySet: invalidKeys},
+			hdrAuth:    DefaultConfig.AuthScheme + " " + secondToken,
+			config:     Config{KeySet: invalidKeys},
 			info:       "Invalid keys second token",
 		},
 	} {
@@ -436,13 +435,13 @@ func TestJWXwithKID(t *testing.T) {
 		c := e.NewContext(req, res)
 
 		if tc.expErrCode != 0 {
-			h := jwx.WithConfig(&tc.config)(handler)
+			h := WithConfig(&tc.config)(handler)
 			he := h(c).(*echo.HTTPError)
 			test.Equal(tc.expErrCode, he.Code, tc.info)
 			continue
 		}
 
-		h := jwx.WithConfig(&tc.config)(handler)
+		h := WithConfig(&tc.config)(handler)
 		if assert.NoError(t, h(c), tc.info) {
 			user := c.Get("user").(jwt.Token)
 			{
@@ -482,7 +481,7 @@ func ExampleEcho() {
 		panic(fmt.Sprintf("failed to refresh google JWKS: %s\n", err))
 	}
 
-	e.Use(jwx.JWX(ks))
+	e.Use(JWX(ks))
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
